@@ -1,0 +1,16 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - misspell
+    - unused
+
+formatters:
+  enable:
+    - goimports
+    - gofmt
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10

@@ -1,0 +1,6 @@
+gis-backend
+*.exe
+.env
+.DS_Store
+.idea/
+.vscode/
