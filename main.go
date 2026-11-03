@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"gis-backend/config"
+	"gis-backend/db"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -14,6 +15,8 @@ import (
 
 func main() {
 	config.Load()
+	db.Connect()
+	db.Migrate()
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
