@@ -10,6 +10,7 @@ const (
 	RoleModerator      = "moderator"
 
 	StatusVisitor   = "visitor"
+	StatusVerified  = "verified"
 	DecisionPending = "pending"
 )
 
@@ -20,10 +21,12 @@ type Role struct {
 	Name string `gorm:"not null;size:200"`
 }
 
-// User holds the account. Personal columns exist now; the site fills only the full name and password hash.
+// User holds the account. Login is unique; the full name may repeat.
+// Personal columns exist now; the site fills the full name, login, and password hash.
 type User struct {
 	ID                 uint   `gorm:"primaryKey"`
-	FullName           string `gorm:"uniqueIndex;not null;size:300"`
+	Login              string `gorm:"uniqueIndex;not null;size:100"`
+	FullName           string `gorm:"not null;size:300"`
 	PasswordHash       string `gorm:"not null;size:255"`
 	Phone              string `gorm:"size:40"`
 	Email              string `gorm:"size:200"`

@@ -8,6 +8,7 @@ import (
 	"gis-backend/config"
 	"gis-backend/models"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -54,8 +55,16 @@ func Migrate() {
 		log.Printf("parcel boundary column failed: %v", err)
 		os.Exit(1)
 	}
+	if err := DB.Exec(`DROP INDEX IF EXISTS idx_users_full_name`).Error; err != nil {
+		log.Printf("full name index drop failed: %v", err)
+		os.Exit(1)
+	}
 	if err := seedRoles(); err != nil {
 		log.Printf("role seed failed: %v", err)
+		os.Exit(1)
+	}
+	if err := seedModerator(); err != nil {
+		log.Printf("moderator seed failed: %v", err)
 		os.Exit(1)
 	}
 	log.Print("database migrated")
@@ -103,4 +112,31 @@ func seedRoles() error {
 		}
 	}
 	return nil
+}
+
+func seedModerator() error {
+	var count int64
+	if err := DB.Model(&models.User{}).Where("login = ?", config.ModeratorLogin()).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	var role models.Role
+	if err := DB.Where("code = ?", models.RoleModerator).First(&role).Error; err != nil {
+		return err
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(config.ModeratorPassword()), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	user := models.User{
+		Login:              config.ModeratorLogin(),
+		FullName:           config.ModeratorFullName(),
+		PasswordHash:       string(hashed),
+		VerificationStatus: models.StatusVerified,
+		RoleID:             &role.ID,
+	}
+	return DB.Create(&user).Error
 }

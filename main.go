@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"gis-backend/auth"
 	"gis-backend/config"
 	"gis-backend/db"
 
@@ -16,6 +17,7 @@ import (
 func main() {
 	config.Load()
 	db.Connect()
+	db.ConnectRedis()
 	db.Migrate()
 
 	router := chi.NewRouter()
@@ -26,6 +28,10 @@ func main() {
 	router.Use(corsMiddleware)
 
 	router.Get("/api/health", health)
+	router.Post("/api/auth/register", auth.Register)
+	router.Post("/api/auth/login", auth.Login)
+	router.Post("/api/auth/logout", auth.Logout)
+	router.Get("/api/auth/me", auth.Me)
 
 	addr := config.HTTPAddr()
 	log.Printf("listening on %s", addr)
@@ -55,6 +61,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

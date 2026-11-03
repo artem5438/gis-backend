@@ -69,6 +69,18 @@ func RedisAddr() string {
 	return getEnv("REDIS_ADDR", "localhost:6379")
 }
 
+func ModeratorLogin() string {
+	return getEnv("MODERATOR_LOGIN", "moderator")
+}
+
+func ModeratorPassword() string {
+	return getEnv("MODERATOR_PASSWORD", "moderator-change-me")
+}
+
+func ModeratorFullName() string {
+	return getEnv("MODERATOR_FULL_NAME", "Модератор")
+}
+
 func MinioEndpoint() string {
 	return getEnv("MINIO_ENDPOINT", "localhost:9000")
 }

@@ -82,6 +82,9 @@ services:
       MINIO_SECRET_KEY: minioadmin123
       MINIO_BUCKET: norilsk-media
       MINIO_USE_SSL: "false"
+      MODERATOR_LOGIN: moderator
+      MODERATOR_PASSWORD: moderator-change-me
+      MODERATOR_FULL_NAME: Модератор
     depends_on:
       postgres:
         condition: service_healthy
