@@ -10,6 +10,7 @@ import (
 	"gis-backend/auth"
 	"gis-backend/config"
 	"gis-backend/db"
+	"gis-backend/parcels"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -37,6 +38,7 @@ func main() {
 	router.Get("/api/applications/mine", applications.Mine)
 	router.Get("/api/applications", applications.Queue)
 	router.Post("/api/applications/{id}/decision", applications.Decide)
+	router.Get("/api/parcels", parcels.Layer)
 
 	addr := config.HTTPAddr()
 	log.Printf("listening on %s", addr)
