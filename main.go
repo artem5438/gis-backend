@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"gis-backend/applications"
 	"gis-backend/auth"
 	"gis-backend/config"
 	"gis-backend/db"
@@ -32,6 +33,10 @@ func main() {
 	router.Post("/api/auth/login", auth.Login)
 	router.Post("/api/auth/logout", auth.Logout)
 	router.Get("/api/auth/me", auth.Me)
+	router.Post("/api/applications", applications.Create)
+	router.Get("/api/applications/mine", applications.Mine)
+	router.Get("/api/applications", applications.Queue)
+	router.Post("/api/applications/{id}/decision", applications.Decide)
 
 	addr := config.HTTPAddr()
 	log.Printf("listening on %s", addr)

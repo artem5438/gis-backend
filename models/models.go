@@ -9,9 +9,11 @@ const (
 	RoleAdministration = "administration"
 	RoleModerator      = "moderator"
 
-	StatusVisitor   = "visitor"
-	StatusVerified  = "verified"
-	DecisionPending = "pending"
+	StatusVisitor    = "visitor"
+	StatusVerified   = "verified"
+	DecisionPending  = "pending"
+	DecisionApproved = "approved"
+	DecisionRejected = "rejected"
 )
 
 // Role is an application role, not a PostgreSQL login.
@@ -37,7 +39,7 @@ type User struct {
 	UpdatedAt          time.Time
 }
 
-// Application keeps the verification form. The site does not fill these columns yet.
+// Application keeps a role request. The site fills the text; the other personal columns stay empty.
 type Application struct {
 	ID             uint `gorm:"primaryKey"`
 	UserID         uint `gorm:"not null;index"`

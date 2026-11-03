@@ -146,6 +146,11 @@ func Me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toPublic(user))
 }
 
+// RequireUser reads the session and the account. On failure it writes the response.
+func RequireUser(w http.ResponseWriter, r *http.Request) (models.User, bool) {
+	return userFromRequest(w, r)
+}
+
 func userFromRequest(w http.ResponseWriter, r *http.Request) (models.User, bool) {
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil || cookie.Value == "" {
