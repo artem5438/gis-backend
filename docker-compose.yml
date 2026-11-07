@@ -85,6 +85,10 @@ services:
       MODERATOR_LOGIN: moderator
       MODERATOR_PASSWORD: moderator-change-me
       MODERATOR_FULL_NAME: Модератор
+      NSPD_BASE_URL: https://nspd.gov.ru
+      NSPD_LAYER_ID: "36048"
+      NSPD_CATEGORY_ID: "36368"
+      NSPD_DIAL_ADDR: 2.63.246.76
     depends_on:
       postgres:
         condition: service_healthy

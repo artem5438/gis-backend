@@ -1,6 +1,13 @@
 gis-backend
 *.exe
 .env
+.env.*
+!.env.example
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
 .DS_Store
 .idea/
 .vscode/

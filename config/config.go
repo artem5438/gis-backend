@@ -97,6 +97,24 @@ func MinioBucket() string {
 	return getEnv("MINIO_BUCKET", "norilsk-media")
 }
 
+func NSPDBaseURL() string {
+	return strings.TrimRight(getEnv("NSPD_BASE_URL", "https://nspd.gov.ru"), "/")
+}
+
+func NSPDLayerID() string {
+	return getEnv("NSPD_LAYER_ID", "36048")
+}
+
+func NSPDCategoryID() string {
+	return getEnv("NSPD_CATEGORY_ID", "36368")
+}
+
+// NSPDDialAddr is the address the public map actually answered on.
+// The site name also lists neighboring addresses that do not complete a connection.
+func NSPDDialAddr() string {
+	return getEnv("NSPD_DIAL_ADDR", "2.63.246.76")
+}
+
 func MinioUseSSL() bool {
 	return strings.EqualFold(getEnv("MINIO_USE_SSL", "false"), "true")
 }

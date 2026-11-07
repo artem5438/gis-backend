@@ -39,6 +39,7 @@ func main() {
 	router.Get("/api/applications", applications.Queue)
 	router.Post("/api/applications/{id}/decision", applications.Decide)
 	router.Get("/api/parcels", parcels.Layer)
+	router.Post("/api/parcels/at-point", parcels.AtPoint)
 
 	addr := config.HTTPAddr()
 	log.Printf("listening on %s", addr)

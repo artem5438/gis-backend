@@ -61,17 +61,28 @@ type Application struct {
 
 // Parcel is one cadastral land plot. Boundary is a PostGIS geometry in EPSG:4326.
 type Parcel struct {
-	ID              uint   `gorm:"primaryKey"`
-	CadastralNumber string `gorm:"uniqueIndex;not null;size:40"`
-	AreaHa          *float64
-	LandCategory    string  `gorm:"size:300"`
-	PermittedUse    string  `gorm:"size:500"`
-	District        string  `gorm:"size:40"`
-	Direction       string  `gorm:"size:40"`
-	Boundary        *string `gorm:"type:geometry(Geometry,4326)"`
-	InCatalog       bool    `gorm:"not null;default:false"`
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID               uint   `gorm:"primaryKey"`
+	CadastralNumber  string `gorm:"uniqueIndex;not null;size:40"`
+	ObjectKind       string `gorm:"size:200"`
+	ParcelKind       string `gorm:"size:200"`
+	AssignedOn       string `gorm:"size:40"`
+	CadastralQuarter string `gorm:"size:40"`
+	Address          string `gorm:"size:1000"`
+	AreaHa           *float64
+	AreaM2           *float64 `gorm:"type:numeric"`
+	AreaName         string   `gorm:"size:40"`
+	Status           string   `gorm:"size:80"`
+	LandCategory     string   `gorm:"size:300"`
+	PermittedUse     string   `gorm:"size:500"`
+	OwnershipForm    string   `gorm:"size:80"`
+	CadastralCost    *float64 `gorm:"type:numeric"`
+	CostIndex        *float64 `gorm:"type:numeric"`
+	District         string   `gorm:"size:40"`
+	Direction        string   `gorm:"size:40"`
+	Boundary         *string  `gorm:"type:geometry(Geometry,4326)"`
+	InCatalog        bool     `gorm:"not null;default:false"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // ScoreSetting stores weights and the working area range for one direction.
