@@ -24,6 +24,7 @@ type feature struct {
 type parcelRow struct {
 	ID              uint
 	CadastralNumber string
+	LandCategory    string `gorm:"column:land_category"`
 	GeoJSON         string `gorm:"column:geojson"`
 }
 
@@ -40,7 +41,7 @@ func Layer(w http.ResponseWriter, r *http.Request) {
 
 	var rows []parcelRow
 	err := db.DB.Raw(`
-		SELECT id, cadastral_number, ST_AsGeoJSON(boundary)::text AS geojson
+		SELECT id, cadastral_number, land_category, ST_AsGeoJSON(boundary)::text AS geojson
 		FROM parcels
 		WHERE boundary IS NOT NULL
 		ORDER BY id
@@ -61,6 +62,7 @@ func Layer(w http.ResponseWriter, r *http.Request) {
 			Geometry: json.RawMessage(row.GeoJSON),
 			Properties: map[string]any{
 				"cadastral_number": row.CadastralNumber,
+				"land_category":    row.LandCategory,
 			},
 		})
 	}
