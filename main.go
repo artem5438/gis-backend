@@ -34,12 +34,18 @@ func main() {
 	router.Post("/api/auth/login", auth.Login)
 	router.Post("/api/auth/logout", auth.Logout)
 	router.Get("/api/auth/me", auth.Me)
+	router.Post("/api/auth/source", auth.SaveSource)
 	router.Post("/api/applications", applications.Create)
 	router.Get("/api/applications/mine", applications.Mine)
 	router.Get("/api/applications", applications.Queue)
 	router.Post("/api/applications/{id}/decision", applications.Decide)
 	router.Get("/api/parcels", parcels.Layer)
 	router.Post("/api/parcels/at-point", parcels.AtPoint)
+	router.Post("/api/parcels/stored", parcels.StoredAtPoint)
+	router.Get("/api/catalog/walk", parcels.WalkStatus)
+	router.Post("/api/catalog/walk", parcels.StartWalk)
+
+	parcels.StartWalker()
 
 	addr := config.HTTPAddr()
 	log.Printf("listening on %s", addr)

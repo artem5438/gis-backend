@@ -33,6 +33,7 @@ type User struct {
 	Phone              string `gorm:"size:40"`
 	Email              string `gorm:"size:200"`
 	VerificationStatus string `gorm:"not null;size:40;default:visitor"`
+	FromDatabase       bool   `gorm:"not null;default:true"`
 	RoleID             *uint
 	Role               *Role
 	CreatedAt          time.Time

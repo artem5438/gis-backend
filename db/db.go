@@ -40,6 +40,15 @@ func Migrate() {
 		os.Exit(1)
 	}
 
+	var hadSource int64
+	if DB.Migrator().HasTable("users") {
+		_ = DB.Raw(`
+			SELECT COUNT(*)
+			FROM information_schema.columns
+			WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'from_database'
+		`).Scan(&hadSource).Error
+	}
+
 	err := DB.AutoMigrate(
 		&models.Role{},
 		&models.User{},
@@ -50,6 +59,12 @@ func Migrate() {
 	if err != nil {
 		log.Printf("database migration failed: %v", err)
 		os.Exit(1)
+	}
+	if hadSource == 0 {
+		if err := DB.Exec(`UPDATE users SET from_database = true`).Error; err != nil {
+			log.Printf("parcel source column failed: %v", err)
+			os.Exit(1)
+		}
 	}
 	if err := ensureParcelBoundary(); err != nil {
 		log.Printf("parcel boundary column failed: %v", err)
@@ -136,6 +151,7 @@ func seedModerator() error {
 		FullName:           config.ModeratorFullName(),
 		PasswordHash:       string(hashed),
 		VerificationStatus: models.StatusVerified,
+		FromDatabase:       true,
 		RoleID:             &role.ID,
 	}
 	return DB.Create(&user).Error

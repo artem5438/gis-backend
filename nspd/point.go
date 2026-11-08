@@ -18,6 +18,9 @@ import (
 // ErrEmpty means the public map answered and there is no land plot at the point.
 var ErrEmpty = errors.New("nspd: no land plot")
 
+// ErrTooBig means the public map refused the contour because it covers too many plots.
+var ErrTooBig = errors.New("nspd: contour is too big")
+
 // Plot is one land plot taken from the public cadastral map.
 // Geometry is GeoJSON in EPSG:4326, or nil when the plot has no boundary.
 type Plot struct {
@@ -124,6 +127,9 @@ func getJSON(req *http.Request) ([]byte, error) {
 	if readErr != nil {
 		return nil, readErr
 	}
+	if tooBig(resp.StatusCode, payload) {
+		return nil, ErrTooBig
+	}
 	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
 		time.Sleep(time.Second)
 		resp, err = client.Do(req.Clone(req.Context()))
@@ -135,6 +141,9 @@ func getJSON(req *http.Request) ([]byte, error) {
 		if readErr != nil {
 			return nil, readErr
 		}
+	}
+	if tooBig(resp.StatusCode, payload) {
+		return nil, ErrTooBig
 	}
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrEmpty
@@ -428,6 +437,19 @@ func ringContains(ring [][]float64, lng, lat float64) bool {
 func asArray(value any) []any {
 	items, _ := value.([]any)
 	return items
+}
+
+func tooBig(status int, payload []byte) bool {
+	if status != http.StatusInternalServerError {
+		return false
+	}
+	var body struct {
+		Code int `json:"code"`
+	}
+	if json.Unmarshal(payload, &body) != nil {
+		return false
+	}
+	return body.Code == 400004
 }
 
 func asFloat(value any) (float64, bool) {

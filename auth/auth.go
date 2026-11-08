@@ -29,6 +29,7 @@ type publicUser struct {
 	Login              string      `json:"login"`
 	FullName           string      `json:"full_name"`
 	VerificationStatus string      `json:"verification_status"`
+	FromDatabase       bool        `json:"from_database"`
 	Role               *publicRole `json:"role"`
 }
 
@@ -74,6 +75,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		FullName:           fullName,
 		PasswordHash:       string(hashed),
 		VerificationStatus: models.StatusVisitor,
+		FromDatabase:       true,
 	}
 	if err := db.DB.Create(&user).Error; err != nil {
 		writeError(w, http.StatusInternalServerError, "не удалось создать учётную запись")
@@ -219,12 +221,34 @@ func cleanAccount(login, fullName, password string) (string, string, string, boo
 	return login, fullName, password, true
 }
 
+// SaveSource remembers whether the map reads a saved parcel or asks the public map.
+func SaveSource(w http.ResponseWriter, r *http.Request) {
+	user, ok := RequireUser(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		FromDatabase *bool `json:"from_database"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.FromDatabase == nil {
+		writeError(w, http.StatusBadRequest, "нужно положение переключателя")
+		return
+	}
+	if err := db.DB.Model(&user).Update("from_database", *body.FromDatabase).Error; err != nil {
+		writeError(w, http.StatusInternalServerError, "не удалось сохранить переключатель")
+		return
+	}
+	user.FromDatabase = *body.FromDatabase
+	writeJSON(w, http.StatusOK, toPublic(user))
+}
+
 func toPublic(user models.User) publicUser {
 	out := publicUser{
 		ID:                 user.ID,
 		Login:              user.Login,
 		FullName:           user.FullName,
 		VerificationStatus: user.VerificationStatus,
+		FromDatabase:       user.FromDatabase,
 	}
 	if user.Role != nil {
 		out.Role = &publicRole{Code: user.Role.Code, Name: user.Role.Name}
