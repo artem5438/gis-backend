@@ -16,6 +16,13 @@ func TestCentresFallIntoTheirOwnContour(t *testing.T) {
 	}
 }
 
+func TestKayerkanReachesTheAirport(t *testing.T) {
+	// Аэропорт Алыкель: 69°18'41"N 87°19'56"E.
+	if got := Assign(87.3322, 69.3114, nil); got != "Кайеркан" {
+		t.Fatal(got)
+	}
+}
+
 func TestTalnakhReachesTheOctoberMine(t *testing.T) {
 	// Рудник «Октябрьский», основная площадка: 69°31'32"N 88°20'15"E.
 	if got := Assign(88.3375, 69.5256, nil); got != "Талнах" {

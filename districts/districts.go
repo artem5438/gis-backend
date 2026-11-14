@@ -15,7 +15,7 @@ type Area struct {
 var Areas = []Area{
 	{ID: "central", Name: "Центральный", Ring: box(69.290, 88.100, 69.400, 88.290)},
 	{ID: "talnakh", Name: "Талнах", Ring: box(69.430, 88.280, 69.570, 88.490)},
-	{ID: "kayerkan", Name: "Кайеркан", Ring: box(69.300, 87.650, 69.410, 87.900)},
+	{ID: "kayerkan", Name: "Кайеркан", Ring: box(69.270, 87.280, 69.410, 87.900)},
 	{ID: "oganer", Name: "Оганер", Ring: box(69.325, 88.290, 69.400, 88.460)},
 }
 
