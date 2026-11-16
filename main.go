@@ -12,9 +12,18 @@ import (
 	"gis-backend/db"
 	"gis-backend/parcels"
 
+	_ "gis-backend/docs"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
+
+// @title           ГИС Норильска
+// @version         1
+// @description     Запросы сервера. Вход открывает cookie session_id на сутки. Дальнейшие запросы ходят с этой cookie.
+// @host            localhost:8080
+// @BasePath        /
 
 func main() {
 	config.Load()
@@ -28,6 +37,10 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 	router.Use(corsMiddleware)
+
+	router.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8080/swagger/doc.json"),
+	))
 
 	router.Get("/api/health", health)
 	router.Post("/api/auth/register", auth.Register)
@@ -54,10 +67,20 @@ func main() {
 	}
 }
 
+type healthResponse struct {
+	Status string `json:"status"`
+}
+
+// Health проверяет, что сервер отвечает.
+// @Summary      Проверка сервера
+// @Tags         сервер
+// @Produce      json
+// @Success      200  {object}  healthResponse
+// @Router       /api/health [get]
 func health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(healthResponse{Status: "ok"})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

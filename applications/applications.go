@@ -32,6 +32,35 @@ type publicApplication struct {
 	AssignedRole *publicRole `json:"assigned_role"`
 }
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+type applicationRequest struct {
+	Body string `json:"body"`
+}
+
+type decisionRequest struct {
+	Decision string `json:"decision"`
+	Role     string `json:"role"`
+}
+
+type reviewQueue struct {
+	Applications []publicApplication `json:"applications"`
+	Roles        []publicRole        `json:"roles"`
+}
+
+// Create сохраняет текст заявки на роль.
+// @Summary      Отправить заявку
+// @Tags         заявки
+// @Accept       json
+// @Produce      json
+// @Param        body  body      applicationRequest  true  "Зачем нужна роль"
+// @Success      201   {object}  publicApplication
+// @Failure      400   {object}  errorResponse
+// @Failure      401   {object}  errorResponse
+// @Failure      409   {object}  errorResponse
+// @Router       /api/applications [post]
 func Create(w http.ResponseWriter, r *http.Request) {
 	user, ok := auth.RequireUser(w, r)
 	if !ok {
@@ -42,9 +71,7 @@ func Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		Body string `json:"body"`
-	}
+	var body applicationRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "некорректный JSON")
 		return
@@ -79,6 +106,13 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toPublic(application, false))
 }
 
+// Mine возвращает заявку текущего человека.
+// @Summary      Моя заявка
+// @Tags         заявки
+// @Produce      json
+// @Success      200  {object}  publicApplication
+// @Failure      401  {object}  errorResponse
+// @Router       /api/applications/mine [get]
 func Mine(w http.ResponseWriter, r *http.Request) {
 	user, ok := auth.RequireUser(w, r)
 	if !ok {
@@ -100,6 +134,14 @@ func Mine(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"application": toPublic(application, false)})
 }
 
+// Queue возвращает заявки без решения и список ролей.
+// @Summary      Очередь модератора
+// @Tags         заявки
+// @Produce      json
+// @Success      200  {object}  reviewQueue
+// @Failure      401  {object}  errorResponse
+// @Failure      403  {object}  errorResponse
+// @Router       /api/applications [get]
 func Queue(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireModerator(w, r); !ok {
 		return
@@ -126,12 +168,26 @@ func Queue(w http.ResponseWriter, r *http.Request) {
 	for _, role := range roles {
 		roleItems = append(roleItems, publicRole{Code: role.Code, Name: role.Name})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"applications": items,
-		"roles":        roleItems,
+	writeJSON(w, http.StatusOK, reviewQueue{
+		Applications: items,
+		Roles:        roleItems,
 	})
 }
 
+// Decide назначает одну роль или отклоняет заявку.
+// @Summary      Решение по заявке
+// @Tags         заявки
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int              true  "Номер заявки"
+// @Param        body  body      decisionRequest  true  "approved и код роли, либо rejected"
+// @Success      200   {object}  decisionRequest
+// @Failure      400   {object}  errorResponse
+// @Failure      401   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
+// @Failure      404   {object}  errorResponse
+// @Failure      409   {object}  errorResponse
+// @Router       /api/applications/{id}/decision [post]
 func Decide(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireModerator(w, r); !ok {
 		return
@@ -141,10 +197,7 @@ func Decide(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "некорректная заявка")
 		return
 	}
-	var body struct {
-		Decision string `json:"decision"`
-		Role     string `json:"role"`
-	}
+	var body decisionRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "некорректный JSON")
 		return
@@ -236,5 +289,5 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
+	writeJSON(w, status, errorResponse{Error: message})
 }

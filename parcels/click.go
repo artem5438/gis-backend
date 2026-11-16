@@ -39,6 +39,16 @@ type lookupResponse struct {
 
 // AtPoint asks the public map about one click and stores the land plot.
 // A repeated click with the same cadastral number updates that row.
+// @Summary      Участок по щелчку
+// @Tags         участки
+// @Accept       json
+// @Produce      json
+// @Param        body  body      pointRequest  true  "Широта и долгота"
+// @Success      200   {object}  lookupResponse
+// @Failure      400   {object}  errorResponse
+// @Failure      401   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
+// @Router       /api/parcels/at-point [post]
 func AtPoint(w http.ResponseWriter, r *http.Request) {
 	user, ok := auth.RequireUser(w, r)
 	if !ok {
@@ -49,10 +59,7 @@ func AtPoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		Lat *float64 `json:"lat"`
-		Lng *float64 `json:"lng"`
-	}
+	var body pointRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Lat == nil || body.Lng == nil {
 		writeError(w, http.StatusBadRequest, "нужны широта и долгота")
 		return

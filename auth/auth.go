@@ -38,12 +38,37 @@ type publicRole struct {
 	Name string `json:"name"`
 }
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+type registerRequest struct {
+	Login    string `json:"login"`
+	FullName string `json:"full_name"`
+	Password string `json:"password"`
+}
+
+type loginRequest struct {
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
+type sourceRequest struct {
+	FromDatabase *bool `json:"from_database"`
+}
+
+// Register создаёт учётную запись. Сессию открывает вход.
+// @Summary      Регистрация
+// @Tags         вход
+// @Accept       json
+// @Produce      json
+// @Param        body  body      registerRequest  true  "ФИО, логин и пароль"
+// @Success      201   {object}  publicUser
+// @Failure      400   {object}  errorResponse
+// @Failure      409   {object}  errorResponse
+// @Router       /api/auth/register [post]
 func Register(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Login    string `json:"login"`
-		FullName string `json:"full_name"`
-		Password string `json:"password"`
-	}
+	var body registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "некорректный JSON")
 		return
@@ -81,18 +106,21 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "не удалось создать учётную запись")
 		return
 	}
-	if err := startSession(w, user.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, "учётная запись создана, но сессия не открылась")
-		return
-	}
 	writeJSON(w, http.StatusCreated, toPublic(user))
 }
 
+// Login сверяет логин и пароль и открывает сессию.
+// @Summary      Вход
+// @Tags         вход
+// @Accept       json
+// @Produce      json
+// @Param        body  body      loginRequest  true  "Логин и пароль"
+// @Success      200   {object}  publicUser
+// @Failure      400   {object}  errorResponse
+// @Failure      401   {object}  errorResponse
+// @Router       /api/auth/login [post]
 func Login(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Login    string `json:"login"`
-		Password string `json:"password"`
-	}
+	var body loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "некорректный JSON")
 		return
@@ -125,6 +153,12 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toPublic(user))
 }
 
+// Logout закрывает сессию.
+// @Summary      Выход
+// @Tags         вход
+// @Produce      json
+// @Success      204
+// @Router       /api/auth/logout [post]
 func Logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookie); err == nil && cookie.Value != "" {
 		_ = db.Redis.Del(r.Context(), sessionKey(cookie.Value)).Err()
@@ -140,6 +174,13 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Me возвращает текущего человека по cookie сессии.
+// @Summary      Кто вошёл
+// @Tags         вход
+// @Produce      json
+// @Success      200  {object}  publicUser
+// @Failure      401  {object}  errorResponse
+// @Router       /api/auth/me [get]
 func Me(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromRequest(w, r)
 	if !ok {
@@ -222,14 +263,21 @@ func cleanAccount(login, fullName, password string) (string, string, string, boo
 }
 
 // SaveSource remembers whether the map reads a saved parcel or asks the public map.
+// @Summary      Откуда открывать карточку участка
+// @Tags         вход
+// @Accept       json
+// @Produce      json
+// @Param        body  body      sourceRequest  true  "Читать карточку из своей базы"
+// @Success      200   {object}  publicUser
+// @Failure      400   {object}  errorResponse
+// @Failure      401   {object}  errorResponse
+// @Router       /api/auth/source [post]
 func SaveSource(w http.ResponseWriter, r *http.Request) {
 	user, ok := RequireUser(w, r)
 	if !ok {
 		return
 	}
-	var body struct {
-		FromDatabase *bool `json:"from_database"`
-	}
+	var body sourceRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.FromDatabase == nil {
 		writeError(w, http.StatusBadRequest, "нужно положение переключателя")
 		return
@@ -263,5 +311,5 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"error": message})
+	writeJSON(w, status, errorResponse{Error: message})
 }

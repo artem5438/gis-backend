@@ -49,6 +49,14 @@ func StartWalker() {
 }
 
 // WalkStatus tells how many parcels are saved and how many rectangles remain.
+// WalkStatus сообщает, идёт ли обход каталога.
+// @Summary      Состояние обхода
+// @Tags         каталог
+// @Produce      json
+// @Success      200  {object}  walkStatus
+// @Failure      401  {object}  errorResponse
+// @Failure      403  {object}  errorResponse
+// @Router       /api/catalog/walk [get]
 func WalkStatus(w http.ResponseWriter, r *http.Request) {
 	if _, ok := moderator(w, r); !ok {
 		return
@@ -59,6 +67,14 @@ func WalkStatus(w http.ResponseWriter, r *http.Request) {
 // StartWalk puts the district rectangles into Redis and wakes the worker.
 // A second press while the walk is running does not add the rectangles again.
 // A press after the walk has stopped starts again from the current contours.
+// StartWalk запускает обход четырёх районов. Доступно модератору.
+// @Summary      Собрать каталог
+// @Tags         каталог
+// @Produce      json
+// @Success      200  {object}  walkStatus
+// @Failure      401  {object}  errorResponse
+// @Failure      403  {object}  errorResponse
+// @Router       /api/catalog/walk [post]
 func StartWalk(w http.ResponseWriter, r *http.Request) {
 	if _, ok := moderator(w, r); !ok {
 		return
