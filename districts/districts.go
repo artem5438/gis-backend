@@ -107,6 +107,33 @@ func Assign(lng, lat float64, vertices [][]float64) string {
 	return best
 }
 
+// Named returns the district contour with this name.
+func Named(name string) (Area, bool) {
+	for _, area := range Areas {
+		if area.Name == name {
+			return area, true
+		}
+	}
+	return Area{}, false
+}
+
+// Center is the middle of the district contour.
+func (area Area) Center() (lng, lat float64) {
+	south, west, north, east := bounds(area.Ring)
+	return (west + east) / 2, (south + north) / 2
+}
+
+// Corners are the four corners of the district contour, longitude then latitude.
+func (area Area) Corners() [][]float64 {
+	south, west, north, east := bounds(area.Ring)
+	return [][]float64{
+		{west, south},
+		{east, south},
+		{east, north},
+		{west, north},
+	}
+}
+
 func nameAt(lng, lat float64) string {
 	for _, area := range Areas {
 		if contains(area.Ring, lng, lat) {

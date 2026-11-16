@@ -64,6 +64,10 @@ func TestCatalogKeepsDistrictWhenTheClickUpdatesTheRow(t *testing.T) {
 	if err != nil || !found || card.CadastralNumber == "" {
 		t.Fatalf("stored card found=%v err=%v %+v", found, err, card)
 	}
+	scored, err := scoreParcel(card.ID)
+	if err != nil || !scored.Ready || scored.District != "Центральный" || scored.Total < 0 || scored.Total > 100 {
+		t.Fatalf("score err=%v %+v", err, scored)
+	}
 	miss, found, err := readStoredParcel(60, 30)
 	if err != nil || found || miss.ID != 0 {
 		t.Fatalf("outside point found=%v err=%v", found, err)

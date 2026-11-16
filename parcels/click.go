@@ -14,22 +14,23 @@ import (
 )
 
 type parcelCard struct {
-	ID               uint     `json:"id"`
-	CadastralNumber  string   `json:"cadastral_number"`
-	ObjectKind       string   `json:"object_kind"`
-	ParcelKind       string   `json:"parcel_kind"`
-	AssignedOn       string   `json:"assigned_on"`
-	CadastralQuarter string   `json:"cadastral_quarter"`
-	Address          string   `json:"address"`
-	AreaHa           *float64 `json:"area_ha"`
-	AreaM2           *float64 `json:"area_m2"`
-	AreaName         string   `json:"area_name"`
-	Status           string   `json:"status"`
-	LandCategory     string   `json:"land_category"`
-	PermittedUse     string   `json:"permitted_use"`
-	OwnershipForm    string   `json:"ownership_form"`
-	CadastralCost    *float64 `json:"cadastral_cost"`
-	CostIndex        *float64 `json:"cost_index"`
+	ID               uint         `json:"id"`
+	CadastralNumber  string       `json:"cadastral_number"`
+	ObjectKind       string       `json:"object_kind"`
+	ParcelKind       string       `json:"parcel_kind"`
+	AssignedOn       string       `json:"assigned_on"`
+	CadastralQuarter string       `json:"cadastral_quarter"`
+	Address          string       `json:"address"`
+	AreaHa           *float64     `json:"area_ha"`
+	AreaM2           *float64     `json:"area_m2"`
+	AreaName         string       `json:"area_name"`
+	Status           string       `json:"status"`
+	LandCategory     string       `json:"land_category"`
+	PermittedUse     string       `json:"permitted_use"`
+	OwnershipForm    string       `json:"ownership_form"`
+	CadastralCost    *float64     `json:"cadastral_cost"`
+	CostIndex        *float64     `json:"cost_index"`
+	Score            *parcelScore `json:"score,omitempty" gorm:"-"`
 }
 
 type lookupResponse struct {
@@ -86,19 +87,21 @@ func AtPoint(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "не удалось сохранить участок")
 		return
 	}
+	attachScore(&card)
 	writeJSON(w, http.StatusOK, lookupResponse{Found: true, Parcel: &card})
 }
 
 func savePlot(plot nspd.Plot) (parcelCard, error) {
-	card, err := upsertPlot(plot, plot.Geometry)
+	district := districtOf(plot)
+	card, err := upsertPlot(plot, plot.Geometry, district)
 	if err != nil && len(plot.Geometry) > 0 {
 		log.Printf("parcel boundary: %v", err)
-		return upsertPlot(plot, nil)
+		return upsertPlot(plot, nil, district)
 	}
 	return card, err
 }
 
-func upsertPlot(plot nspd.Plot, geometry json.RawMessage) (parcelCard, error) {
+func upsertPlot(plot nspd.Plot, geometry json.RawMessage, district string) (parcelCard, error) {
 	geo := ""
 	if len(geometry) > 0 {
 		geo = string(geometry)
@@ -114,7 +117,7 @@ func upsertPlot(plot nspd.Plot, geometry json.RawMessage) (parcelCard, error) {
 			?, ?, ?, ?, ?, ?,
 			?, ?, ?, ?, ?, ?,
 			?, ?, ?,
-			'', '', false,
+			?, '', false,
 			CASE WHEN ? = '' THEN NULL ELSE ST_SetSRID(ST_GeomFromGeoJSON(?), 4326) END,
 			NOW(), NOW()
 		)
@@ -133,6 +136,7 @@ func upsertPlot(plot nspd.Plot, geometry json.RawMessage) (parcelCard, error) {
 			ownership_form = EXCLUDED.ownership_form,
 			cadastral_cost = EXCLUDED.cadastral_cost,
 			cost_index = EXCLUDED.cost_index,
+			district = CASE WHEN EXCLUDED.district = '' THEN parcels.district ELSE EXCLUDED.district END,
 			boundary = EXCLUDED.boundary,
 			updated_at = NOW()
 		RETURNING id, cadastral_number, object_kind, parcel_kind, assigned_on, cadastral_quarter, address,
@@ -143,6 +147,7 @@ func upsertPlot(plot nspd.Plot, geometry json.RawMessage) (parcelCard, error) {
 		plot.CadastralNumber, plot.ObjectKind, plot.ParcelKind, plot.AssignedOn, plot.CadastralQuarter, plot.Address,
 		plot.AreaHa, plot.AreaM2, plot.AreaName, plot.Status, plot.LandCategory, plot.PermittedUse,
 		plot.OwnershipForm, plot.CadastralCost, plot.CostIndex,
+		district,
 		geo, geo,
 	).Scan(&row).Error
 	if err != nil {

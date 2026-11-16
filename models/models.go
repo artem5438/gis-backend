@@ -86,14 +86,10 @@ type Parcel struct {
 	UpdatedAt        time.Time
 }
 
-// ScoreSetting stores weights and the working area range for one direction.
-// Rows are inserted when the score itself is implemented.
+// ScoreSetting stores the two factor weights. They are the same for every land plot.
+// Location is three quarters, area is one quarter: the centre of every weight pair in which location outweighs area.
 type ScoreSetting struct {
-	ID                 uint   `gorm:"primaryKey"`
-	Direction          string `gorm:"uniqueIndex;not null;size:40"`
-	AreaMinHa          float64
-	AreaMaxHa          float64
-	WeightLandCategory float64
-	WeightArea         float64
-	WeightPermittedUse float64
+	ID             uint `gorm:"primaryKey"`
+	WeightLocation float64
+	WeightArea     float64
 }

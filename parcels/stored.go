@@ -51,6 +51,7 @@ func StoredAtPoint(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, lookupResponse{Found: false})
 		return
 	}
+	attachScore(&card)
 	writeJSON(w, http.StatusOK, lookupResponse{Found: true, Parcel: &card})
 }
 

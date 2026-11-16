@@ -82,7 +82,40 @@ func Migrate() {
 		log.Printf("moderator seed failed: %v", err)
 		os.Exit(1)
 	}
+	if err := relaxScoreDirection(); err != nil {
+		log.Printf("score setting column failed: %v", err)
+		os.Exit(1)
+	}
+	if err := seedScore(); err != nil {
+		log.Printf("score setting seed failed: %v", err)
+		os.Exit(1)
+	}
 	log.Print("database migrated")
+}
+
+func relaxScoreDirection() error {
+	var required int64
+	err := DB.Raw(`
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'score_settings'
+			AND column_name = 'direction' AND is_nullable = 'NO'
+	`).Scan(&required).Error
+	if err != nil || required == 0 {
+		return err
+	}
+	return DB.Exec(`ALTER TABLE score_settings ALTER COLUMN direction DROP NOT NULL`).Error
+}
+
+func seedScore() error {
+	var count int64
+	err := DB.Model(&models.ScoreSetting{}).
+		Where("weight_location > 0 OR weight_area > 0").
+		Count(&count).Error
+	if err != nil || count > 0 {
+		return err
+	}
+	return DB.Create(&models.ScoreSetting{WeightLocation: 0.75, WeightArea: 0.25}).Error
 }
 
 func ensureParcelBoundary() error {
