@@ -53,6 +53,7 @@ func main() {
 	router.Get("/api/applications", applications.Queue)
 	router.Post("/api/applications/{id}/decision", applications.Decide)
 	router.Get("/api/parcels", parcels.Layer)
+	router.Get("/api/analytics", parcels.Analytics)
 	router.Post("/api/parcels/at-point", parcels.AtPoint)
 	router.Post("/api/parcels/stored", parcels.StoredAtPoint)
 	router.Get("/api/catalog/walk", parcels.WalkStatus)

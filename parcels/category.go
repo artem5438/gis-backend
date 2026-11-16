@@ -2,6 +2,18 @@ package parcels
 
 import "strings"
 
+// LegendTitles are the eight land categories, in the same order as the map legend.
+var LegendTitles = []string{
+	"Земли сельскохозяйственного назначения",
+	"Земли населенных пунктов",
+	"Земли промышленности и иного назначения",
+	"Земли особо охраняемых территорий",
+	"Земли лесного фонда",
+	"Земли водного фонда",
+	"Земли запаса",
+	"Категория не установлена",
+}
+
 // CategoryTitle matches the eight legend titles used on the map.
 // An unknown text stays in the last group, the same way the map paints it.
 func CategoryTitle(value string) string {
@@ -22,6 +34,6 @@ func CategoryTitle(value string) string {
 	case strings.Contains(text, "запас"):
 		return "Земли запаса"
 	default:
-		return "Категория не установлена"
+		return LegendTitles[len(LegendTitles)-1]
 	}
 }
