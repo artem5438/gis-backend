@@ -11,3 +11,6 @@ id_ed25519
 .DS_Store
 .idea/
 .vscode/
+assistant-model/.venv/
+assistant-model/**/__pycache__/
+assistant-model/.cache/

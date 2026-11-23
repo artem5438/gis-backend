@@ -30,6 +30,20 @@ func TestTalnakhReachesTheOctoberMine(t *testing.T) {
 	}
 }
 
+func TestExpandedContoursCoverTheRiverAndTheRoad(t *testing.T) {
+	// Полоса у реки между Норильском и Талнахом раньше была вне всех контуров.
+	if got := Assign(88.250, 69.415, nil); got != "Центральный" {
+		t.Fatalf("river south %q", got)
+	}
+	if got := Assign(88.350, 69.425, nil); got != "Талнах" {
+		t.Fatalf("river north %q", got)
+	}
+	// Дорога между Кайерканом и Центральным.
+	if got := Assign(87.950, 69.340, nil); got != "Кайеркан" {
+		t.Fatalf("road %q", got)
+	}
+}
+
 func TestStreetNameDoesNotAssignADistrict(t *testing.T) {
 	if got := Assign(88.201, 69.349, nil); got != "Центральный" {
 		t.Fatal(got)

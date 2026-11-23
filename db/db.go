@@ -39,6 +39,10 @@ func Migrate() {
 		log.Printf("postgis extension failed: %v", err)
 		os.Exit(1)
 	}
+	if err := ensureAssistant(); err != nil {
+		log.Printf("assistant schema failed: %v", err)
+		os.Exit(1)
+	}
 
 	var hadSource int64
 	if DB.Migrator().HasTable("users") {

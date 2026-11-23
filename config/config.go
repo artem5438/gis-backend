@@ -118,3 +118,7 @@ func NSPDDialAddr() string {
 func MinioUseSSL() bool {
 	return strings.EqualFold(getEnv("MINIO_USE_SSL", "false"), "true")
 }
+
+func AssistantURL() string {
+	return strings.TrimRight(getEnv("ASSISTANT_URL", "http://localhost:8090"), "/")
+}

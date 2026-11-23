@@ -13,10 +13,11 @@ type Area struct {
 // Areas are the contours used to assign a district.
 // A street name does not decide the district.
 var Areas = []Area{
-	{ID: "central", Name: "Центральный", Ring: box(69.290, 88.100, 69.400, 88.290)},
-	{ID: "talnakh", Name: "Талнах", Ring: box(69.430, 88.280, 69.570, 88.490)},
-	{ID: "kayerkan", Name: "Кайеркан", Ring: box(69.270, 87.280, 69.410, 87.900)},
-	{ID: "oganer", Name: "Оганер", Ring: box(69.325, 88.290, 69.400, 88.460)},
+	// 16 ноября 2026. Контуры только расширены: река между Норильском и Талнахом и дорога на Кайеркан входят в обход.
+	{ID: "central", Name: "Центральный", Ring: box(69.220, 87.980, 69.420, 88.340)},
+	{ID: "talnakh", Name: "Талнах", Ring: box(69.410, 88.180, 69.640, 88.620)},
+	{ID: "kayerkan", Name: "Кайеркан", Ring: box(69.200, 87.050, 69.430, 88.050)},
+	{ID: "oganer", Name: "Оганер", Ring: box(69.250, 88.290, 69.450, 88.580)},
 }
 
 // Tile is one small rectangle inside a district, in degrees.

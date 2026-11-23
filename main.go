@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"gis-backend/applications"
+	"gis-backend/assistant"
 	"gis-backend/auth"
 	"gis-backend/config"
 	"gis-backend/db"
@@ -58,6 +59,9 @@ func main() {
 	router.Post("/api/parcels/stored", parcels.StoredAtPoint)
 	router.Get("/api/catalog/walk", parcels.WalkStatus)
 	router.Post("/api/catalog/walk", parcels.StartWalk)
+	router.Post("/api/assistant/documents", assistant.Upload)
+	router.Get("/api/assistant/documents", assistant.Documents)
+	router.Post("/api/assistant/ask", assistant.Ask)
 
 	parcels.StartWalker()
 

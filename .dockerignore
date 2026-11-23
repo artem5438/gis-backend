@@ -1,3 +1,6 @@
 .git
 .env
 *.md
+assistant-model/.venv
+assistant-model/**/__pycache__
+assistant-model/.cache

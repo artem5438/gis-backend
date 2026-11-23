@@ -1,7 +1,10 @@
 services:
   postgres:
-    # Official postgis/postgis publishes amd64 only. This image is PostgreSQL 16 with PostGIS 3.5 and has an arm64 build.
-    image: imresamu/postgis:16-3.5
+    # Official postgis/postgis publishes amd64 only. The base image is PostgreSQL 16 with PostGIS 3.5 and an arm64 build.
+    # pgvector is compiled on top of it so document fragments stay in this same database.
+    build:
+      context: ./postgres
+    image: norilsk-postgis-pgvector:16
     container_name: norilsk_postgres
     restart: unless-stopped
     environment:
@@ -82,6 +85,7 @@ services:
       MINIO_SECRET_KEY: minioadmin123
       MINIO_BUCKET: norilsk-media
       MINIO_USE_SSL: "false"
+      ASSISTANT_URL: http://host.docker.internal:8090
       MODERATOR_LOGIN: moderator
       MODERATOR_PASSWORD: moderator-change-me
       MODERATOR_FULL_NAME: Модератор
