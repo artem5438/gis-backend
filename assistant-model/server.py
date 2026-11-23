@@ -9,6 +9,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+from extract import extract_pdf
 from chunking import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
@@ -22,7 +23,7 @@ HOST = os.environ.get("ASSISTANT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("ASSISTANT_PORT", "8090"))
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "intfloat/multilingual-e5-small")
 REFUSAL = "В документах этого нет."
-MAX_BODY = 2_000_000
+MAX_BODY = 80 * 1024 * 1024
 
 GRADE_SUITABLE = "годится"
 GRADE_THIN = "мало данных"
@@ -206,6 +207,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
+        if path == "/extract-pdf":
+            try:
+                self.respond(200, {"text": extract_pdf(self.read_bytes())})
+            except ValueError as exc:
+                self.respond(400, {"error": str(exc)})
+            except Exception as exc:
+                print(f"request failed: {exc}", flush=True)
+                self.respond(500, {"error": "файл pdf не читается"})
+            return
         try:
             payload = self.read_json()
         except ValueError as exc:
@@ -234,11 +244,14 @@ class Handler(BaseHTTPRequestHandler):
             print(f"request failed: {exc}", flush=True)
             self.respond(500, {"error": "модель не ответила"})
 
-    def read_json(self):
+    def read_bytes(self):
         length = int(self.headers.get("Content-Length", "0"))
         if length < 0 or length > MAX_BODY:
             raise ValueError("слишком большой запрос")
-        raw = self.rfile.read(length)
+        return self.rfile.read(length)
+
+    def read_json(self):
+        raw = self.read_bytes()
         if not raw:
             return {}
         try:

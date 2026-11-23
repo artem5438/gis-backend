@@ -94,7 +94,18 @@ func Migrate() {
 		log.Printf("score setting seed failed: %v", err)
 		os.Exit(1)
 	}
+	if err := ensureDocumentOwner(); err != nil {
+		log.Printf("assistant owner column failed: %v", err)
+		os.Exit(1)
+	}
 	log.Print("database migrated")
+}
+
+func ensureDocumentOwner() error {
+	return DB.Exec(`
+		ALTER TABLE assistant_documents
+		ADD COLUMN IF NOT EXISTS uploaded_by bigint REFERENCES users(id)
+	`).Error
 }
 
 func relaxScoreDirection() error {

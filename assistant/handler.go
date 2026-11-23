@@ -1,13 +1,21 @@
 package assistant
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
+
+	"gis-backend/auth"
+	"gis-backend/models"
+
+	"github.com/go-chi/chi/v5"
 )
 
 const refusal = "В документах этого нет."
@@ -37,20 +45,33 @@ type askResponse struct {
 	Grades []gradeResponse `json:"grades"`
 }
 
+type titleRequest struct {
+	Title string `json:"title"`
+}
+
+type statusResponse struct {
+	Status string `json:"status"`
+}
+
 // Upload сохраняет документ в MinIO и записывает фрагменты с векторами.
 // @Summary      Загрузка документа ассистента
 // @Tags         ассистент
 // @Accept       mpfd
 // @Produce      json
-// @Param        file  formData  file  true  "Текст .txt, .md или .docx"
+// @Param        file  formData  file  true  "txt, md, docx, pdf, xlsx или csv, до 50 МБ"
 // @Success      201   {object}  uploadResponse
 // @Failure      400   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
 // @Failure      502   {object}  errorResponse
 // @Router       /api/assistant/documents [post]
 func Upload(w http.ResponseWriter, r *http.Request) {
+	user, ok := requireRole(w, r)
+	if !ok {
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes+1<<20)
 	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
-		writeError(w, http.StatusBadRequest, "нужен файл не больше 8 МБ")
+		writeError(w, http.StatusBadRequest, "нужен файл не больше 50 МБ")
 		return
 	}
 	file, header, err := r.FormFile("file")
@@ -64,7 +85,7 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "файл не прочитался")
 		return
 	}
-	text, err := textFromUpload(header.Filename, data)
+	text, err := readUpload(r.Context(), header.Filename, data)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -78,13 +99,13 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "в файле нет текста")
 		return
 	}
-	title := strings.TrimSpace(path.Base(header.Filename))
+	title := titleFromFilename(header.Filename)
 	key := "assistant/" + randomKey() + strings.ToLower(path.Ext(header.Filename))
 	if err := putObject(r.Context(), key, data, header.Header.Get("Content-Type")); err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	document, err := saveDocument(r.Context(), title, key, chunks)
+	document, err := saveDocument(r.Context(), title, key, user.ID, chunks)
 	if err != nil {
 		removeObject(r.Context(), key)
 		writeError(w, http.StatusBadGateway, "фрагменты не записались")
@@ -102,9 +123,14 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 // @Tags         ассистент
 // @Produce      json
 // @Success      200  {array}   storedDocument
+// @Failure      403  {object}  errorResponse
 // @Router       /api/assistant/documents [get]
 func Documents(w http.ResponseWriter, r *http.Request) {
-	documents, err := listDocuments(r.Context())
+	user, ok := requireRole(w, r)
+	if !ok {
+		return
+	}
+	documents, err := listDocuments(r.Context(), user)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "список документов не собрался")
 		return
@@ -178,6 +204,66 @@ func Ask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, askResponse{Answer: answer, Grades: grades})
 }
 
+// Rename меняет название документа. Ключ файла в хранилище остаётся прежним.
+// @Summary      Новое название документа
+// @Tags         ассистент
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int          true  "Номер документа"
+// @Param        body  body      titleRequest true  "Название"
+// @Success      200   {object}  statusResponse
+// @Failure      400   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
+// @Failure      404   {object}  errorResponse
+// @Router       /api/assistant/documents/{id} [patch]
+func Rename(w http.ResponseWriter, r *http.Request) {
+	row, ok := editableDocument(w, r)
+	if !ok {
+		return
+	}
+	var body titleRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "некорректный JSON")
+		return
+	}
+	title, err := cleanTitle(body.Title)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := renameDocument(r.Context(), row.ID, title); err != nil {
+		writeStoredError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, statusResponse{Status: "ok"})
+}
+
+// Delete убирает документ, его фрагменты и объект в хранилище.
+// @Summary      Удаление документа
+// @Tags         ассистент
+// @Produce      json
+// @Param        id  path      int  true  "Номер документа"
+// @Success      200  {object}  statusResponse
+// @Failure      403  {object}  errorResponse
+// @Failure      404  {object}  errorResponse
+// @Failure      502  {object}  errorResponse
+// @Router       /api/assistant/documents/{id} [delete]
+func Delete(w http.ResponseWriter, r *http.Request) {
+	row, ok := editableDocument(w, r)
+	if !ok {
+		return
+	}
+	if err := deleteObject(r.Context(), row.ObjectKey); err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	if err := removeDocument(r.Context(), row.ID); err != nil {
+		writeStoredError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, statusResponse{Status: "ok"})
+}
+
 func randomKey() string {
 	var buf [16]byte
 	if _, err := rand.Read(buf[:]); err != nil {
@@ -194,4 +280,64 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, errorResponse{Error: message})
+}
+
+func requireRole(w http.ResponseWriter, r *http.Request) (models.User, bool) {
+	user, ok := auth.RequireUser(w, r)
+	if !ok {
+		return models.User{}, false
+	}
+	if user.Role == nil || user.Role.Code == "" {
+		writeError(w, http.StatusForbidden, "документы откроются после назначения роли")
+		return models.User{}, false
+	}
+	return user, true
+}
+
+func readUpload(ctx context.Context, name string, data []byte) (string, error) {
+	if err := rejectUpload(name, len(data)); err != nil {
+		return "", err
+	}
+	if strings.ToLower(path.Ext(name)) == ".pdf" {
+		return newModelClient().extractPDF(ctx, data)
+	}
+	return textFromUpload(name, data)
+}
+
+func editableDocument(w http.ResponseWriter, r *http.Request) (documentRecord, bool) {
+	user, ok := requireRole(w, r)
+	if !ok {
+		return documentRecord{}, false
+	}
+	id, err := documentID(r)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "документ не найден")
+		return documentRecord{}, false
+	}
+	row, err := documentByID(r.Context(), id)
+	if err != nil {
+		writeStoredError(w, err)
+		return documentRecord{}, false
+	}
+	if !canEdit(user, row.UploadedBy) {
+		writeError(w, http.StatusForbidden, "этот документ может изменить его автор или модератор")
+		return documentRecord{}, false
+	}
+	return row, true
+}
+
+func documentID(r *http.Request) (uint, error) {
+	parsed, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || parsed == 0 {
+		return 0, errNotFound
+	}
+	return uint(parsed), nil
+}
+
+func writeStoredError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errNotFound) {
+		writeError(w, http.StatusNotFound, "документ не найден")
+		return
+	}
+	writeError(w, http.StatusBadGateway, "документ не сохранился")
 }

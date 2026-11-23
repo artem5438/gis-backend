@@ -23,7 +23,7 @@ type modelClient struct {
 func newModelClient() modelClient {
 	return modelClient{
 		base: config.AssistantURL(),
-		http: &http.Client{Timeout: 3 * time.Minute},
+		http: &http.Client{Timeout: 15 * time.Minute},
 	}
 }
 
@@ -47,6 +47,20 @@ type modelGrade struct {
 type modelAnswer struct {
 	Answer string       `json:"answer"`
 	Grades []modelGrade `json:"grades"`
+}
+
+func (client modelClient) extractPDF(ctx context.Context, data []byte) (string, error) {
+	var out struct {
+		Text string `json:"text"`
+	}
+	if err := client.postBytes(ctx, "/extract-pdf", "application/pdf", data, &out); err != nil {
+		return "", err
+	}
+	text := strings.TrimSpace(out.Text)
+	if text == "" {
+		return "", fmt.Errorf("в pdf нет текста")
+	}
+	return text, nil
 }
 
 func (client modelClient) prepare(ctx context.Context, text string) ([]preparedChunk, error) {
@@ -98,17 +112,21 @@ func (client modelClient) post(ctx context.Context, path string, payload any, de
 	if err != nil {
 		return err
 	}
+	return client.postBytes(ctx, path, "application/json", raw, dest)
+}
+
+func (client modelClient) postBytes(ctx context.Context, path string, contentType string, raw []byte, dest any) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.base+path, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
-	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Content-Type", contentType)
 	response, err := client.http.Do(request)
 	if err != nil {
 		return fmt.Errorf("программа моделей недоступна")
 	}
 	defer func() { _ = response.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
+	body, err := readLimited(response.Body, 128<<20)
 	if err != nil {
 		return err
 	}
@@ -129,4 +147,15 @@ func (client modelClient) post(ctx context.Context, path string, payload any, de
 		return fmt.Errorf("программа моделей вернула не JSON")
 	}
 	return nil
+}
+
+func readLimited(source io.Reader, limit int64) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(source, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > limit {
+		return nil, fmt.Errorf("документ слишком большой для нарезки")
+	}
+	return body, nil
 }
