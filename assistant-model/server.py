@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 from extract import extract_pdf
+from grounding import invented_name
 from chunking import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
@@ -22,7 +23,7 @@ from chunking import (
 HOST = os.environ.get("ASSISTANT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("ASSISTANT_PORT", "8090"))
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "intfloat/multilingual-e5-small")
-REFUSAL = "В документах этого нет."
+REFUSAL = "Извините, у меня нет этой информации."
 MAX_BODY = 80 * 1024 * 1024
 
 GRADE_SUITABLE = "годится"
@@ -49,7 +50,8 @@ GRADE_PROMPT = """
 
 ANSWER_PROMPT = """
 Ответь на вопрос только по приведённым фрагментам.
-Не добавляй факты, цены, номера и сроки, которых во фрагментах нет.
+Не называй людей, числа и сроки, которых во фрагментах нет дословно.
+Если ответа во фрагментах нет, напиши ровно: Извините, у меня нет этой информации.
 Пиши по-русски, коротко.
 """.strip()
 
@@ -188,7 +190,8 @@ def answer(question, chunks):
     for chunk in suitable:
         lines.append(f"{chunk['number']}. {chunk['text']}")
     text = complete(ANSWER_PROMPT, "\n".join(lines), max_tokens=500)
-    if not text:
+    source = "\n".join(chunk["text"] for chunk in suitable)
+    if not text or invented_name(text, source):
         text = REFUSAL
     return {"grades": grades, "answer": text}
 

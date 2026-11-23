@@ -18,7 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const refusal = "В документах этого нет."
+const refusal = "Извините, у меня нет этой информации."
 
 type errorResponse struct {
 	Error string `json:"error"`
@@ -41,8 +41,10 @@ type gradeResponse struct {
 }
 
 type askResponse struct {
-	Answer string          `json:"answer"`
-	Grades []gradeResponse `json:"grades"`
+	Answer  string          `json:"answer"`
+	Sources []string        `json:"sources,omitempty"`
+	Map     *ParcelSpot     `json:"map,omitempty"`
+	Grades  []gradeResponse `json:"grades"`
 }
 
 type titleRequest struct {
@@ -162,13 +164,26 @@ func Ask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "нужен вопрос в поле message")
 		return
 	}
+	if reply, ok := courtesyReply(question); ok {
+		writeJSON(w, http.StatusOK, askResponse{Answer: reply})
+		return
+	}
+	if query, ok := matchParcelQuestion(question); ok {
+		answer, spot, err := parcelAnswer(r.Context(), query)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "участок по району не нашёлся")
+			return
+		}
+		writeJSON(w, http.StatusOK, askResponse{Answer: answer, Map: spot, Grades: []gradeResponse{}})
+		return
+	}
 	client := newModelClient()
 	vector, err := client.embedQuery(r.Context(), question)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
-	chunks, err := nearestChunks(r.Context(), vector)
+	chunks, err := recallChunks(r.Context(), vector, question)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "поиск фрагментов не выполнился")
 		return
@@ -201,7 +216,24 @@ func Ask(w http.ResponseWriter, r *http.Request) {
 	if answer == "" {
 		answer = refusal
 	}
-	writeJSON(w, http.StatusOK, askResponse{Answer: answer, Grades: grades})
+	writeJSON(w, http.StatusOK, askResponse{Answer: answer, Sources: sourceTitles(answer, grades), Grades: grades})
+}
+
+func sourceTitles(answer string, grades []gradeResponse) []string {
+	if answer == "" || answer == refusal {
+		return nil
+	}
+	seen := map[string]bool{}
+	var titles []string
+	for _, grade := range grades {
+		title := strings.TrimSpace(grade.Title)
+		if grade.Grade != "годится" || title == "" || seen[title] {
+			continue
+		}
+		seen[title] = true
+		titles = append(titles, title)
+	}
+	return titles
 }
 
 // Rename меняет название документа. Ключ файла в хранилище остаётся прежним.
