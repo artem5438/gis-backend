@@ -57,6 +57,7 @@ func main() {
 	router.Get("/api/analytics", parcels.Analytics)
 	router.Post("/api/parcels/at-point", parcels.AtPoint)
 	router.Post("/api/parcels/stored", parcels.StoredAtPoint)
+	router.Get("/api/parcels/{id}/quarter", parcels.Quarter)
 	router.Get("/api/catalog/walk", parcels.WalkStatus)
 	router.Post("/api/catalog/walk", parcels.StartWalk)
 	router.Post("/api/assistant/documents", assistant.Upload)
