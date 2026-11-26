@@ -13,7 +13,7 @@ import (
 	"gis-backend/config"
 )
 
-const embeddingSize = 384
+const embeddingSize = 768
 
 type modelClient struct {
 	base string
@@ -34,9 +34,11 @@ type preparedChunk struct {
 }
 
 type foundChunk struct {
-	Number int
-	Title  string
-	Text   string
+	Number     int
+	DocumentID uint
+	Title      string
+	Kind       string
+	Text       string
 }
 
 type modelGrade struct {

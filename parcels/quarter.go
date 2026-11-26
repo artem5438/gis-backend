@@ -31,37 +31,40 @@ type quarterSlice struct {
 }
 
 type quarterReport struct {
-	Ready         bool           `json:"ready"`
-	Reason        string         `json:"reason,omitempty"`
-	Basis         string         `json:"basis,omitempty"`
-	Note          string         `json:"note,omitempty"`
-	Quarter       string         `json:"quarter,omitempty"`
-	NeighborCount int            `json:"neighbor_count"`
-	AreaHa        *float64       `json:"area_ha"`
-	AreaMedianHa  *float64       `json:"area_median_ha"`
-	CostIndex     *float64       `json:"cost_index"`
-	CostMedian    *float64       `json:"cost_median"`
-	SameCategory  int            `json:"same_category"`
-	SameUse       int            `json:"same_use"`
-	Score         *float64       `json:"score"`
-	ScoreMedian   *float64       `json:"score_median"`
-	Categories    []quarterSlice `json:"categories"`
-	Uses          []quarterSlice `json:"uses"`
+	Ready           bool           `json:"ready"`
+	Reason          string         `json:"reason,omitempty"`
+	Basis           string         `json:"basis,omitempty"`
+	Note            string         `json:"note,omitempty"`
+	Quarter         string         `json:"quarter,omitempty"`
+	NeighborCount   int            `json:"neighbor_count"`
+	NeighborNumbers []string       `json:"neighbor_numbers"`
+	AreaHa          *float64       `json:"area_ha"`
+	AreaMedianHa    *float64       `json:"area_median_ha"`
+	CostIndex       *float64       `json:"cost_index"`
+	CostMedian      *float64       `json:"cost_median"`
+	SameCategory    int            `json:"same_category"`
+	SameUse         int            `json:"same_use"`
+	Score           *float64       `json:"score"`
+	ScoreMedian     *float64       `json:"score_median"`
+	Categories      []quarterSlice `json:"categories"`
+	Uses            []quarterSlice `json:"uses"`
 }
 
 type quarterRow struct {
-	ID           uint
-	Quarter      string
-	LandCategory string
-	PermittedUse string
-	District     string
-	Hectares     *float64
-	CostIndex    *float64
-	Lng          *float64
-	Lat          *float64
+	ID              uint
+	CadastralNumber string
+	Quarter         string
+	LandCategory    string
+	PermittedUse    string
+	District        string
+	Hectares        *float64
+	CostIndex       *float64
+	Lng             *float64
+	Lat             *float64
 }
 
 type quarterPlace struct {
+	Number   string
 	Category string
 	Use      string
 	Hectares float64
@@ -201,11 +204,16 @@ func neighborBasis(quarter string, quarterCount int) (string, bool) {
 }
 
 func assembleQuarter(in quarterInput) quarterReport {
+	numbers := neighborNumbers(in.Neighbors)
 	if in.Basis == "radius" && !in.HasBoundary {
-		return emptyQuarter("Сравнить не с чем: для поиска рядом нужна граница участка.")
+		report := emptyQuarter("Сравнить не с чем: для поиска рядом нужна граница участка.")
+		report.NeighborNumbers = numbers
+		return report
 	}
 	if len(in.Neighbors) < quarterMin {
-		return emptyQuarter("Сравнить не с чем: рядом меньше пяти участков.")
+		report := emptyQuarter("Сравнить не с чем: рядом меньше пяти участков.")
+		report.NeighborNumbers = numbers
+		return report
 	}
 
 	subjectCategory := CategoryTitle(in.Subject.Category)
@@ -239,15 +247,16 @@ func assembleQuarter(in quarterInput) quarterReport {
 	}
 
 	report := quarterReport{
-		Ready:         true,
-		Basis:         in.Basis,
-		Note:          quarterNote(in.Quarter, in.QuarterCount, len(in.Neighbors), in.Basis),
-		Quarter:       in.Quarter,
-		NeighborCount: len(in.Neighbors),
-		SameCategory:  sameCategory,
-		SameUse:       sameUse,
-		Categories:    categorySlices(categories),
-		Uses:          useSlices(uses),
+		Ready:           true,
+		Basis:           in.Basis,
+		Note:            quarterNote(in.Quarter, in.QuarterCount, len(in.Neighbors), in.Basis),
+		Quarter:         in.Quarter,
+		NeighborCount:   len(in.Neighbors),
+		NeighborNumbers: numbers,
+		SameCategory:    sameCategory,
+		SameUse:         sameUse,
+		Categories:      categorySlices(categories),
+		Uses:            useSlices(uses),
 	}
 	if in.Subject.HasArea {
 		report.AreaHa = floatPtr(in.Subject.Hectares)
@@ -279,11 +288,23 @@ func quarterNote(quarter string, quarterCount, shown int, basis string) string {
 
 func emptyQuarter(reason string) quarterReport {
 	return quarterReport{
-		Ready:      false,
-		Reason:     reason,
-		Categories: []quarterSlice{},
-		Uses:       []quarterSlice{},
+		Ready:           false,
+		Reason:          reason,
+		NeighborNumbers: []string{},
+		Categories:      []quarterSlice{},
+		Uses:            []quarterSlice{},
 	}
+}
+
+func neighborNumbers(places []quarterPlace) []string {
+	numbers := make([]string, 0, len(places))
+	for _, place := range places {
+		if place.Number == "" {
+			continue
+		}
+		numbers = append(numbers, place.Number)
+	}
+	return numbers
 }
 
 func categorySlices(counts map[string]int) []quarterSlice {
@@ -370,7 +391,7 @@ func readQuarterSubject(id uint) (quarterRow, error) {
 func readQuarterNeighbors(where string, args ...any) ([]quarterRow, error) {
 	var rows []quarterRow
 	err := db.DB.Raw(`
-		SELECT id, land_category, permitted_use, district,
+		SELECT id, cadastral_number, land_category, permitted_use, district,
 			CASE
 				WHEN area_ha > 0 THEN area_ha
 				WHEN area_m2 > 0 THEN area_m2 / 10000.0
@@ -384,7 +405,7 @@ func readQuarterNeighbors(where string, args ...any) ([]quarterRow, error) {
 }
 
 func placeWithScore(row quarterRow, cache map[string][]peerRow, weightLocation, weightArea float64) (quarterPlace, error) {
-	place := quarterPlace{Category: row.LandCategory, Use: row.PermittedUse}
+	place := quarterPlace{Number: row.CadastralNumber, Category: row.LandCategory, Use: row.PermittedUse}
 	if row.Hectares != nil && *row.Hectares > 0 {
 		place.Hectares = *row.Hectares
 		place.HasArea = true

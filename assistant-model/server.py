@@ -5,6 +5,7 @@ The Go server stores files and vectors. This process never opens PostgreSQL.
 
 import json
 import os
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -22,13 +23,14 @@ from chunking import (
 
 HOST = os.environ.get("ASSISTANT_HOST", "0.0.0.0")
 PORT = int(os.environ.get("ASSISTANT_PORT", "8090"))
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "intfloat/multilingual-e5-small")
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "intfloat/multilingual-e5-base")
 REFUSAL = "Извините, у меня нет этой информации."
 MAX_BODY = 80 * 1024 * 1024
 
 GRADE_SUITABLE = "годится"
 GRADE_THIN = "мало данных"
 GRADE_OTHER = "не подходит"
+GRADE_UNREAD = "не разобрана"
 GRADE_ALIASES = {
     "годится": GRADE_SUITABLE,
     "подходит": GRADE_SUITABLE,
@@ -36,13 +38,14 @@ GRADE_ALIASES = {
     "сомнительно": GRADE_THIN,
     "не подходит": GRADE_OTHER,
 }
+ANSWER_GRADES = {GRADE_SUITABLE, GRADE_UNREAD}
 
 GRADE_PROMPT = """
 Оцени каждый фрагмент относительно вопроса.
 Верни только JSON без пояснений:
 {"grades":[{"number":1,"grade":"годится"}]}
-Поле grade — ровно одно из трёх значений:
-- годится — во фрагменте есть данные, по которым можно ответить на вопрос
+Поле number — целое число. Поле grade — ровно одно из трёх значений:
+- годится — во фрагменте есть ответ, в том числе запрет: нельзя, не является, нет такой величины
 - мало данных — тема та же, но нужных данных нет
 - не подходит — фрагмент про другое
 Число оценок равно числу фрагментов. Номера те же, что у фрагментов.
@@ -50,9 +53,11 @@ GRADE_PROMPT = """
 
 ANSWER_PROMPT = """
 Ответь на вопрос только по приведённым фрагментам.
-Не называй людей, числа и сроки, которых во фрагментах нет дословно.
+Фамилия и имя в другом падеже — тот же человек, если основа есть во фрагменте.
+Если спрашивают тему, название или другую графу, напиши значение этой графы из строки человека, а не только фамилию.
+Не называй людей, числа и сроки, которых во фрагментах нет.
 Если ответа во фрагментах нет, напиши ровно: Извините, у меня нет этой информации.
-Пиши по-русски, коротко.
+Пиши по-русски.
 """.strip()
 
 model_lock = threading.Lock()
@@ -66,7 +71,7 @@ def gguf_path():
         return configured
     return str(
         Path.home()
-        / ".lmstudio/models/lmstudio-community/Qwen2.5-7B-Instruct-Q4_K_M/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+        / ".lmstudio/models/lmstudio-community/Qwen3-8B-Q5_K_M.GGUF/Qwen3-8B-Q5_K_M.gguf"
     )
 
 
@@ -87,7 +92,39 @@ def load_models():
     except Exception as exc:
         print(f"gpu layers unavailable ({exc}); loading on cpu", flush=True)
         writer = Llama(n_gpu_layers=0, **common)
+    disable_thinking(writer)
     print("models ready", flush=True)
+
+
+def disable_thinking(model):
+    """Qwen3 reasons unless the chat template is rendered with enable_thinking false."""
+    template = model.metadata.get("tokenizer.chat_template")
+    if not isinstance(template, str) or not template:
+        raise SystemExit("у модели ответа нет шаблона чата, рассуждение не выключить")
+    from llama_cpp import llama_chat_format
+
+    eos_id = model.token_eos()
+    bos_id = model.token_bos()
+    eos_token = model._model.token_get_text(eos_id) if eos_id != -1 else ""
+    bos_token = model._model.token_get_text(bos_id) if bos_id != -1 else ""
+    formatter = llama_chat_format.Jinja2ChatFormatter(
+        template=template,
+        eos_token=eos_token,
+        bos_token=bos_token,
+        stop_token_ids=[eos_id],
+    )
+
+    def format_without_thinking(messages, **kwargs):
+        kwargs["enable_thinking"] = False
+        return formatter(messages=messages, **kwargs)
+
+    model.chat_handler = llama_chat_format.chat_formatter_to_chat_completion_handler(
+        format_without_thinking
+    )
+
+
+def without_thinking(text):
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
 def complete(system, user, max_tokens):
@@ -101,7 +138,7 @@ def complete(system, user, max_tokens):
             max_tokens=max_tokens,
         )
     message = result["choices"][0]["message"]
-    return (message.get("content") or "").strip()
+    return without_thinking(message.get("content") or "")
 
 
 def embed_passages(pieces):
@@ -155,26 +192,51 @@ def parse_object(raw):
     return json.loads(raw[start : end + 1])
 
 
+def grade_number(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def grades_from_model(parsed, chunks):
+    by_number = {}
+    for item in parsed.get("grades") or []:
+        if not isinstance(item, dict):
+            continue
+        number = grade_number(item.get("number"))
+        grade = GRADE_ALIASES.get(str(item.get("grade", "")).strip().lower())
+        if number is None or grade is None:
+            continue
+        by_number[number] = grade
+    return [
+        {"number": chunk["number"], "grade": by_number.get(chunk["number"], GRADE_UNREAD)}
+        for chunk in chunks
+    ]
+
+
+def chunks_for_answer(chunks, grades):
+    by_grade = {}
+    for item in grades:
+        by_grade.setdefault(item["grade"], set()).add(item["number"])
+    suitable = by_grade.get(GRADE_SUITABLE) or set()
+    chosen = suitable or by_grade.get(GRADE_UNREAD) or set()
+    return [chunk for chunk in chunks if chunk["number"] in chosen]
+
+
 def grade_chunks(question, chunks):
     lines = [f"Вопрос: {question}", "Фрагменты:"]
     for chunk in chunks:
         lines.append(f"{chunk['number']}. {chunk['text']}")
     raw = complete(GRADE_PROMPT, "\n".join(lines), max_tokens=300)
-    parsed = parse_object(raw)
-    by_number = {}
-    for item in parsed.get("grades", []):
-        number = item.get("number")
-        grade = GRADE_ALIASES.get(str(item.get("grade", "")).strip().lower())
-        if isinstance(number, int) and grade:
-            by_number[number] = grade
-    grades = []
-    for chunk in chunks:
-        grades.append(
-            {
-                "number": chunk["number"],
-                "grade": by_number.get(chunk["number"], GRADE_OTHER),
-            }
-        )
+    grades = grades_from_model(parse_object(raw), chunks)
+    if any(item["grade"] == GRADE_UNREAD for item in grades):
+        print(f"grade unreadable: {raw}", flush=True)
     return grades
 
 
@@ -182,8 +244,7 @@ def answer(question, chunks):
     if not chunks:
         return {"grades": [], "answer": REFUSAL}
     grades = grade_chunks(question, chunks)
-    suitable_numbers = {item["number"] for item in grades if item["grade"] == GRADE_SUITABLE}
-    suitable = [chunk for chunk in chunks if chunk["number"] in suitable_numbers]
+    suitable = chunks_for_answer(chunks, grades)
     if not suitable:
         return {"grades": grades, "answer": REFUSAL}
     lines = [f"Вопрос: {question}", "Фрагменты:"]
@@ -191,7 +252,11 @@ def answer(question, chunks):
         lines.append(f"{chunk['number']}. {chunk['text']}")
     text = complete(ANSWER_PROMPT, "\n".join(lines), max_tokens=500)
     source = "\n".join(chunk["text"] for chunk in suitable)
-    if not text or invented_name(text, source):
+    dropped = bool(text) and text != REFUSAL and invented_name(text, source)
+    if dropped:
+        print(f"answer dropped: {text}", flush=True)
+        text = REFUSAL
+    if not text:
         text = REFUSAL
     return {"grades": grades, "answer": text}
 

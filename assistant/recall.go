@@ -69,7 +69,7 @@ func wordChunks(ctx context.Context, words []string) ([]foundChunk, error) {
 	}
 	var query strings.Builder
 	args := make([]any, 0, len(words)*2)
-	query.WriteString(`SELECT c.number, d.title, c.body FROM assistant_chunks AS c `)
+	query.WriteString(`SELECT c.number, d.id AS document_id, d.title, d.object_key, c.body FROM assistant_chunks AS c `)
 	query.WriteString(`JOIN assistant_documents AS d ON d.id = c.document_id WHERE (`)
 	for index, word := range words {
 		if index > 0 {
@@ -88,9 +88,11 @@ func wordChunks(ctx context.Context, words []string) ([]foundChunk, error) {
 	}
 	query.WriteString(`) DESC, c.id LIMIT 3`)
 	var rows []struct {
-		Number int
-		Title  string
-		Body   string
+		Number     int
+		DocumentID uint
+		Title      string
+		ObjectKey  string
+		Body       string
 	}
 	err := db.DB.WithContext(ctx).Raw(query.String(), args...).Scan(&rows).Error
 	if err != nil {
@@ -98,7 +100,13 @@ func wordChunks(ctx context.Context, words []string) ([]foundChunk, error) {
 	}
 	found := make([]foundChunk, 0, len(rows))
 	for _, row := range rows {
-		found = append(found, foundChunk{Number: row.Number, Title: row.Title, Text: row.Body})
+		found = append(found, foundChunk{
+			Number:     row.Number,
+			DocumentID: row.DocumentID,
+			Title:      row.Title,
+			Kind:       kindOf(row.ObjectKey),
+			Text:       row.Body,
+		})
 	}
 	return found, nil
 }

@@ -39,11 +39,11 @@ func TestNeighborBasisFallsBackWhenTheQuarterIsAPoorYard(t *testing.T) {
 
 func TestAssembleQuarterComparesThePlotWithNeighborMedians(t *testing.T) {
 	neighbors := []quarterPlace{
-		{Category: "Земли населённых пунктов", Use: "Для дома", Hectares: 1, HasArea: true, Cost: 10, HasCost: true, Score: 10, HasScore: true},
-		{Category: "Земли населенных пунктов", Use: "Для дома", Hectares: 2, HasArea: true, Cost: 20, HasCost: true, Score: 20, HasScore: true},
-		{Category: "Земли населенных пунктов", Use: "Для дома", Hectares: 3, HasArea: true, Cost: 30, HasCost: true, Score: 30, HasScore: true},
-		{Category: "Земли промышленности", Use: "Для склада", Hectares: 4, HasArea: true, Cost: 40, HasCost: true, Score: 40, HasScore: true},
-		{Category: "Земли промышленности", Use: "", Hectares: 10, HasArea: true, Cost: 100, HasCost: true, Score: 80, HasScore: true},
+		{Number: "24:55:010101:1", Category: "Земли населённых пунктов", Use: "Для дома", Hectares: 1, HasArea: true, Cost: 10, HasCost: true, Score: 10, HasScore: true},
+		{Number: "24:55:010101:2", Category: "Земли населенных пунктов", Use: "Для дома", Hectares: 2, HasArea: true, Cost: 20, HasCost: true, Score: 20, HasScore: true},
+		{Number: "24:55:010101:3", Category: "Земли населенных пунктов", Use: "Для дома", Hectares: 3, HasArea: true, Cost: 30, HasCost: true, Score: 30, HasScore: true},
+		{Number: "24:55:010101:4", Category: "Земли промышленности", Use: "Для склада", Hectares: 4, HasArea: true, Cost: 40, HasCost: true, Score: 40, HasScore: true},
+		{Number: "24:55:010101:5", Category: "Земли промышленности", Use: "", Hectares: 10, HasArea: true, Cost: 100, HasCost: true, Score: 80, HasScore: true},
 	}
 	report := assembleQuarter(quarterInput{
 		Quarter:      "24:55:010101",
@@ -74,15 +74,18 @@ func TestAssembleQuarterComparesThePlotWithNeighborMedians(t *testing.T) {
 	if report.Uses[0].Name != "Для дома" || report.Uses[0].Count != 3 {
 		t.Fatalf("uses %#v", report.Uses)
 	}
+	if len(report.NeighborNumbers) != 5 || report.NeighborNumbers[0] != "24:55:010101:1" {
+		t.Fatalf("numbers %#v", report.NeighborNumbers)
+	}
 }
 
 func TestAssembleQuarterRefusesAThinGroup(t *testing.T) {
 	report := assembleQuarter(quarterInput{
 		HasBoundary: true,
 		Basis:       "radius",
-		Neighbors:   []quarterPlace{{}, {}, {}, {}},
+		Neighbors:   []quarterPlace{{Number: "24:55:1:9"}, {}, {}, {}},
 	})
-	if report.Ready || report.Reason == "" {
+	if report.Ready || report.Reason == "" || len(report.NeighborNumbers) != 1 || report.NeighborNumbers[0] != "24:55:1:9" {
 		t.Fatalf("%#v", report)
 	}
 }

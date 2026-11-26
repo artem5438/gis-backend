@@ -52,6 +52,92 @@ definitions:
           $ref: '#/definitions/applications.publicRole'
         type: array
     type: object
+  assistant.ParcelSpot:
+    properties:
+      lat:
+        type: number
+      lng:
+        type: number
+      number:
+        type: string
+    type: object
+  assistant.askRequest:
+    properties:
+      message:
+        type: string
+    type: object
+  assistant.askResponse:
+    properties:
+      answer:
+        type: string
+      grades:
+        items:
+          $ref: '#/definitions/assistant.gradeResponse'
+        type: array
+      map:
+        $ref: '#/definitions/assistant.ParcelSpot'
+      sources:
+        items:
+          $ref: '#/definitions/assistant.sourceResponse'
+        type: array
+    type: object
+  assistant.errorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  assistant.gradeResponse:
+    properties:
+      grade:
+        type: string
+      number:
+        type: integer
+      title:
+        type: string
+    type: object
+  assistant.statusResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  assistant.storedDocument:
+    properties:
+      author:
+        type: string
+      can_edit:
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: integer
+      kind:
+        type: string
+      title:
+        type: string
+    type: object
+  assistant.sourceResponse:
+    properties:
+      id:
+        type: integer
+      kind:
+        type: string
+      title:
+        type: string
+    type: object
+  assistant.titleRequest:
+    properties:
+      title:
+        type: string
+    type: object
+  assistant.uploadResponse:
+    properties:
+      chunks:
+        type: integer
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
   auth.errorResponse:
     properties:
       error:
@@ -104,6 +190,24 @@ definitions:
     properties:
       status:
         type: string
+    type: object
+  parcels.analyticsCell:
+    properties:
+      area_ha:
+        type: number
+      category:
+        type: string
+      count:
+        type: integer
+      district:
+        type: string
+    type: object
+  parcels.analyticsResponse:
+    properties:
+      cells:
+        items:
+          $ref: '#/definitions/parcels.analyticsCell'
+        type: array
     type: object
   parcels.errorResponse:
     properties:
@@ -170,8 +274,37 @@ definitions:
         type: string
       permitted_use:
         type: string
+      score:
+        $ref: '#/definitions/parcels.parcelScore'
       status:
         type: string
+    type: object
+  parcels.parcelScore:
+    properties:
+      area_ha:
+        type: number
+      area_max:
+        type: number
+      area_points:
+        type: number
+      category:
+        type: string
+      distance_m:
+        type: number
+      district:
+        type: string
+      location_max:
+        type: number
+      location_points:
+        type: number
+      median_ha:
+        type: number
+      ready:
+        type: boolean
+      reason:
+        type: string
+      total:
+        type: number
     type: object
   parcels.pointRequest:
     properties:
@@ -179,6 +312,56 @@ definitions:
         type: number
       lng:
         type: number
+    type: object
+  parcels.quarterReport:
+    properties:
+      area_ha:
+        type: number
+      area_median_ha:
+        type: number
+      basis:
+        type: string
+      categories:
+        items:
+          $ref: '#/definitions/parcels.quarterSlice'
+        type: array
+      cost_index:
+        type: number
+      cost_median:
+        type: number
+      neighbor_count:
+        type: integer
+      neighbor_numbers:
+        items:
+          type: string
+        type: array
+      note:
+        type: string
+      quarter:
+        type: string
+      ready:
+        type: boolean
+      reason:
+        type: string
+      same_category:
+        type: integer
+      same_use:
+        type: integer
+      score:
+        type: number
+      score_median:
+        type: number
+      uses:
+        items:
+          $ref: '#/definitions/parcels.quarterSlice'
+        type: array
+    type: object
+  parcels.quarterSlice:
+    properties:
+      count:
+        type: integer
+      name:
+        type: string
     type: object
   parcels.walkStatus:
     properties:
@@ -199,6 +382,26 @@ info:
   title: ГИС Норильска
   version: "1"
 paths:
+  /api/analytics:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/parcels.analyticsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/parcels.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/parcels.errorResponse'
+      summary: Аналитика каталога
+      tags:
+      - участки
   /api/applications:
     get:
       produces:
@@ -313,6 +516,151 @@ paths:
       summary: Моя заявка
       tags:
       - заявки
+  /api/assistant/ask:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Вопрос
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/assistant.askRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/assistant.askResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+      summary: Вопрос ассистенту
+      tags:
+      - ассистент
+  /api/assistant/documents:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/assistant.storedDocument'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+      summary: Список документов ассистента
+      tags:
+      - ассистент
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: txt, md, docx, pdf, xlsx или csv, до 50 МБ
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/assistant.uploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+      summary: Загрузка документа ассистента
+      tags:
+      - ассистент
+  /api/assistant/documents/{id}:
+    delete:
+      parameters:
+      - description: Номер документа
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/assistant.statusResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+      summary: Удаление документа
+      tags:
+      - ассистент
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Номер документа
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Название
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/assistant.titleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/assistant.statusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/assistant.errorResponse'
+      summary: Новое название документа
+      tags:
+      - ассистент
   /api/auth/login:
     post:
       consumes:
@@ -502,7 +850,7 @@ paths:
         in: query
         name: simplify
         type: number
-      - description: 1 — крупные квадраты вместо контуров
+      - description: 1 — склеенные упрощённые контуры
         in: query
         name: squares
         type: integer
@@ -522,6 +870,36 @@ paths:
           schema:
             $ref: '#/definitions/parcels.errorResponse'
       summary: Слой участков
+      tags:
+      - участки
+  /api/parcels/{id}/quarter:
+    get:
+      parameters:
+      - description: Идентификатор участка
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/parcels.quarterReport'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/parcels.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/parcels.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/parcels.errorResponse'
+      summary: Квартал участка
       tags:
       - участки
   /api/parcels/at-point:

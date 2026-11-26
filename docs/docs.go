@@ -15,6 +15,37 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/analytics": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "участки"
+                ],
+                "summary": "Аналитика каталога",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/parcels.analyticsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/parcels.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/parcels.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/applications": {
             "get": {
                 "produces": [
@@ -185,6 +216,228 @@ const docTemplate = `{
                         "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/applications.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assistant/ask": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ассистент"
+                ],
+                "summary": "Вопрос ассистенту",
+                "parameters": [
+                    {
+                        "description": "Вопрос",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/assistant.askRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.askResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assistant/documents": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ассистент"
+                ],
+                "summary": "Список документов ассистента",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/assistant.storedDocument"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ассистент"
+                ],
+                "summary": "Загрузка документа ассистента",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "txt, md, docx, pdf, xlsx или csv, до 50 МБ",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.uploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assistant/documents/{id}": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ассистент"
+                ],
+                "summary": "Удаление документа",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Номер документа",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.statusResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ассистент"
+                ],
+                "summary": "Новое название документа",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Номер документа",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Название",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/assistant.titleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.statusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/assistant.errorResponse"
                         }
                     }
                 }
@@ -488,7 +741,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "1 — крупные квадраты вместо контуров",
+                        "description": "1 — склеенные упрощённые контуры",
                         "name": "squares",
                         "in": "query"
                     }
@@ -616,6 +869,52 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/parcels/{id}/quarter": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "участки"
+                ],
+                "summary": "Квартал участка",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Идентификатор участка",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/parcels.quarterReport"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/parcels.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/parcels.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/parcels.errorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -700,6 +999,140 @@ const docTemplate = `{
                 }
             }
         },
+        "assistant.ParcelSpot": {
+            "type": "object",
+            "properties": {
+                "lat": {
+                    "type": "number"
+                },
+                "lng": {
+                    "type": "number"
+                },
+                "number": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.askRequest": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.askResponse": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "grades": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/assistant.gradeResponse"
+                    }
+                },
+                "map": {
+                    "$ref": "#/definitions/assistant.ParcelSpot"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/assistant.sourceResponse"
+                    }
+                }
+            }
+        },
+        "assistant.errorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.gradeResponse": {
+            "type": "object",
+            "properties": {
+                "grade": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.statusResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.sourceResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.storedDocument": {
+            "type": "object",
+            "properties": {
+                "author": {
+                    "type": "string"
+                },
+                "can_edit": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.titleRequest": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.uploadResponse": {
+            "type": "object",
+            "properties": {
+                "chunks": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.errorResponse": {
             "type": "object",
             "properties": {
@@ -780,6 +1213,34 @@ const docTemplate = `{
             "properties": {
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "parcels.analyticsCell": {
+            "type": "object",
+            "properties": {
+                "area_ha": {
+                    "type": "number"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "district": {
+                    "type": "string"
+                }
+            }
+        },
+        "parcels.analyticsResponse": {
+            "type": "object",
+            "properties": {
+                "cells": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/parcels.analyticsCell"
+                    }
                 }
             }
         },
@@ -882,8 +1343,52 @@ const docTemplate = `{
                 "permitted_use": {
                     "type": "string"
                 },
+                "score": {
+                    "$ref": "#/definitions/parcels.parcelScore"
+                },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "parcels.parcelScore": {
+            "type": "object",
+            "properties": {
+                "area_ha": {
+                    "type": "number"
+                },
+                "area_max": {
+                    "type": "number"
+                },
+                "area_points": {
+                    "type": "number"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "distance_m": {
+                    "type": "number"
+                },
+                "district": {
+                    "type": "string"
+                },
+                "location_max": {
+                    "type": "number"
+                },
+                "location_points": {
+                    "type": "number"
+                },
+                "median_ha": {
+                    "type": "number"
+                },
+                "ready": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "number"
                 }
             }
         },
@@ -895,6 +1400,82 @@ const docTemplate = `{
                 },
                 "lng": {
                     "type": "number"
+                }
+            }
+        },
+        "parcels.quarterReport": {
+            "type": "object",
+            "properties": {
+                "area_ha": {
+                    "type": "number"
+                },
+                "area_median_ha": {
+                    "type": "number"
+                },
+                "basis": {
+                    "type": "string"
+                },
+                "categories": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/parcels.quarterSlice"
+                    }
+                },
+                "cost_index": {
+                    "type": "number"
+                },
+                "cost_median": {
+                    "type": "number"
+                },
+                "neighbor_count": {
+                    "type": "integer"
+                },
+                "neighbor_numbers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "note": {
+                    "type": "string"
+                },
+                "quarter": {
+                    "type": "string"
+                },
+                "ready": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "same_category": {
+                    "type": "integer"
+                },
+                "same_use": {
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "score_median": {
+                    "type": "number"
+                },
+                "uses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/parcels.quarterSlice"
+                    }
+                }
+            }
+        },
+        "parcels.quarterSlice": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },

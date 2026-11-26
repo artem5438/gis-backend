@@ -62,6 +62,7 @@ func main() {
 	router.Post("/api/catalog/walk", parcels.StartWalk)
 	router.Post("/api/assistant/documents", assistant.Upload)
 	router.Get("/api/assistant/documents", assistant.Documents)
+	router.Get("/api/assistant/documents/{id}/file", assistant.File)
 	router.Patch("/api/assistant/documents/{id}", assistant.Rename)
 	router.Delete("/api/assistant/documents/{id}", assistant.Delete)
 	router.Post("/api/assistant/ask", assistant.Ask)
@@ -107,6 +108,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Document-Extension")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

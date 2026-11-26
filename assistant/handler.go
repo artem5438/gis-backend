@@ -40,11 +40,17 @@ type gradeResponse struct {
 	Grade  string `json:"grade"`
 }
 
+type sourceResponse struct {
+	ID    uint   `json:"id"`
+	Title string `json:"title"`
+	Kind  string `json:"kind"`
+}
+
 type askResponse struct {
-	Answer  string          `json:"answer"`
-	Sources []string        `json:"sources,omitempty"`
-	Map     *ParcelSpot     `json:"map,omitempty"`
-	Grades  []gradeResponse `json:"grades"`
+	Answer  string           `json:"answer"`
+	Sources []sourceResponse `json:"sources,omitempty"`
+	Map     *ParcelSpot      `json:"map,omitempty"`
+	Grades  []gradeResponse  `json:"grades"`
 }
 
 type titleRequest struct {
@@ -194,10 +200,12 @@ func Ask(w http.ResponseWriter, r *http.Request) {
 	}
 	numbered := make([]foundChunk, len(chunks))
 	titles := map[int]string{}
+	sources := map[int]sourceResponse{}
 	for index, chunk := range chunks {
 		number := index + 1
 		numbered[index] = foundChunk{Number: number, Title: chunk.Title, Text: chunk.Text}
 		titles[number] = chunk.Title
+		sources[number] = sourceResponse{ID: chunk.DocumentID, Title: chunk.Title, Kind: chunk.Kind}
 	}
 	result, err := client.answer(r.Context(), question, numbered)
 	if err != nil {
@@ -216,24 +224,102 @@ func Ask(w http.ResponseWriter, r *http.Request) {
 	if answer == "" {
 		answer = refusal
 	}
-	writeJSON(w, http.StatusOK, askResponse{Answer: answer, Sources: sourceTitles(answer, grades), Grades: grades})
+	writeJSON(w, http.StatusOK, askResponse{Answer: answer, Sources: sourceRefs(answer, grades, sources), Grades: grades})
 }
 
-func sourceTitles(answer string, grades []gradeResponse) []string {
+func sourceRefs(answer string, grades []gradeResponse, meta map[int]sourceResponse) []sourceResponse {
 	if answer == "" || answer == refusal {
 		return nil
 	}
-	seen := map[string]bool{}
-	var titles []string
+	useUnread := true
 	for _, grade := range grades {
-		title := strings.TrimSpace(grade.Title)
-		if grade.Grade != "годится" || title == "" || seen[title] {
+		if grade.Grade == "годится" {
+			useUnread = false
+			break
+		}
+	}
+	seen := map[uint]bool{}
+	var refs []sourceResponse
+	for _, grade := range grades {
+		item, ok := meta[grade.Number]
+		keep := grade.Grade == "годится" || (useUnread && grade.Grade == "не разобрана")
+		if !ok || !keep || item.ID == 0 || strings.TrimSpace(item.Title) == "" || seen[item.ID] {
 			continue
 		}
-		seen[title] = true
-		titles = append(titles, title)
+		seen[item.ID] = true
+		item.Title = strings.TrimSpace(item.Title)
+		refs = append(refs, item)
 	}
-	return titles
+	return refs
+}
+
+// File отдаёт исходный файл для просмотра. docx и xlsx с plain=1 приходят текстом.
+// @Summary      Файл документа ассистента
+// @Tags         ассистент
+// @Produce      octet-stream
+// @Param        id     path   int   true   "Номер документа"
+// @Param        plain  query  int   false  "1 — текст docx или xlsx"
+// @Success      200    {string}  string
+// @Failure      403    {object}  errorResponse
+// @Failure      404    {object}  errorResponse
+// @Failure      502    {object}  errorResponse
+// @Router       /api/assistant/documents/{id}/file [get]
+func File(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireRole(w, r); !ok {
+		return
+	}
+	id, err := documentID(r)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "документ не найден")
+		return
+	}
+	row, err := documentByID(r.Context(), id)
+	if err != nil {
+		writeStoredError(w, err)
+		return
+	}
+	data, err := readObject(r.Context(), row.ObjectKey)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	ext := strings.ToLower(path.Ext(row.ObjectKey))
+	kind := kindOf(row.ObjectKey)
+	if r.URL.Query().Get("plain") == "1" && (ext == ".docx" || ext == ".xlsx") {
+		text, textErr := textFromUpload(row.ObjectKey, data)
+		if textErr != nil {
+			writeError(w, http.StatusBadGateway, textErr.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Document-Extension", kind)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(text))
+		return
+	}
+	w.Header().Set("Content-Type", contentTypeOf(ext))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", "inline")
+	w.Header().Set("X-Document-Extension", kind)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+func contentTypeOf(ext string) string {
+	switch ext {
+	case ".pdf":
+		return "application/pdf"
+	case ".txt", ".md":
+		return "text/plain; charset=utf-8"
+	case ".csv":
+		return "text/csv; charset=utf-8"
+	case ".docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case ".xlsx":
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 // Rename меняет название документа. Ключ файла в хранилище остаётся прежним.

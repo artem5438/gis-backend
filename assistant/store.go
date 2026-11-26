@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +24,7 @@ var errNotFound = errors.New("документ не найден")
 type storedDocument struct {
 	ID        uint      `json:"id"`
 	Title     string    `json:"title"`
+	Kind      string    `json:"kind"`
 	CreatedAt time.Time `json:"created_at"`
 	Author    *string   `json:"author"`
 	CanEdit   bool      `json:"can_edit"`
@@ -82,12 +85,14 @@ func saveDocument(ctx context.Context, title, objectKey string, ownerID uint, ch
 
 func nearestChunks(ctx context.Context, vector []float64) ([]foundChunk, error) {
 	var rows []struct {
-		Number int
-		Title  string
-		Body   string
+		Number     int
+		DocumentID uint
+		Title      string
+		ObjectKey  string
+		Body       string
 	}
 	err := db.DB.WithContext(ctx).Raw(`
-		SELECT c.number, d.title, c.body
+		SELECT c.number, d.id AS document_id, d.title, d.object_key, c.body
 		FROM assistant_chunks AS c
 		JOIN assistant_documents AS d ON d.id = c.document_id
 		ORDER BY c.embedding <=> CAST(? AS vector)
@@ -98,7 +103,13 @@ func nearestChunks(ctx context.Context, vector []float64) ([]foundChunk, error) 
 	}
 	found := make([]foundChunk, 0, len(rows))
 	for _, row := range rows {
-		found = append(found, foundChunk{Number: row.Number, Title: row.Title, Text: row.Body})
+		found = append(found, foundChunk{
+			Number:     row.Number,
+			DocumentID: row.DocumentID,
+			Title:      row.Title,
+			Kind:       kindOf(row.ObjectKey),
+			Text:       row.Body,
+		})
 	}
 	return found, nil
 }
@@ -106,7 +117,7 @@ func nearestChunks(ctx context.Context, vector []float64) ([]foundChunk, error) 
 func listDocuments(ctx context.Context, user models.User) ([]storedDocument, error) {
 	var rows []documentRecord
 	err := db.DB.WithContext(ctx).Raw(`
-		SELECT d.id, d.title, d.created_at, d.uploaded_by, u.full_name
+		SELECT d.id, d.title, d.object_key, d.created_at, d.uploaded_by, u.full_name
 		FROM assistant_documents AS d
 		LEFT JOIN users AS u ON u.id = d.uploaded_by
 		ORDER BY d.id DESC
@@ -123,6 +134,7 @@ func listDocuments(ctx context.Context, user models.User) ([]storedDocument, err
 		documents = append(documents, storedDocument{
 			ID:        row.ID,
 			Title:     row.Title,
+			Kind:      kindOf(row.ObjectKey),
 			CreatedAt: row.CreatedAt,
 			Author:    author,
 			CanEdit:   canEdit(user, row.UploadedBy),
@@ -171,6 +183,33 @@ func removeDocument(ctx context.Context, id uint) error {
 		return errNotFound
 	}
 	return nil
+}
+
+func kindOf(objectKey string) string {
+	kind := strings.TrimPrefix(strings.ToLower(path.Ext(objectKey)), ".")
+	switch kind {
+	case "txt", "md", "docx", "pdf", "xlsx", "csv":
+		return kind
+	default:
+		return ""
+	}
+}
+
+func readObject(ctx context.Context, key string) ([]byte, error) {
+	client, err := minioClient()
+	if err != nil {
+		return nil, fmt.Errorf("файл не открылся")
+	}
+	object, err := client.GetObject(ctx, config.MinioBucket(), key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("файл не открылся")
+	}
+	defer func() { _ = object.Close() }()
+	data, err := io.ReadAll(io.LimitReader(object, maxUploadBytes+1))
+	if err != nil || len(data) == 0 {
+		return nil, fmt.Errorf("файл не открылся")
+	}
+	return data, nil
 }
 
 func putObject(ctx context.Context, key string, data []byte, contentType string) error {
