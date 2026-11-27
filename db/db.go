@@ -98,6 +98,10 @@ func Migrate() {
 		log.Printf("assistant owner column failed: %v", err)
 		os.Exit(1)
 	}
+	if err := ensureReports(); err != nil {
+		log.Printf("report schema failed: %v", err)
+		os.Exit(1)
+	}
 	log.Print("database migrated")
 }
 
